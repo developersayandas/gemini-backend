@@ -1,39 +1,40 @@
-from flask import Flask, request, jsonify
 import os
-import google.generativeai as genai
+from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 from dotenv import load_dotenv
+import google.generativeai as genai
 
-# Load .env file if exists (for local testing)
+# Load env variables
 load_dotenv()
+API_KEY = os.getenv("GEMINI_API_KEY")
 
+# Configure the API
+genai.configure(api_key=API_KEY)
+
+# Use the correct model
+model = genai.GenerativeModel(model_name="models/gemini-1.5-pro-latest")
+
+# Setup Flask
 app = Flask(__name__)
 CORS(app)
 
-# Load your Gemini API key from environment variable
-api_key = os.getenv("GEMINI_API_KEY")
-if not api_key:
-    raise Exception("GEMINI_API_KEY is not set in environment variables")
-
-genai.configure(api_key=api_key)
-
-# Use the flash model (faster + more quota)
-model = genai.GenerativeModel("models/gemini-1.5-flash-latest")
+@app.route("/")
+def home():
+    return render_template("index.html")
 
 @app.route("/chat", methods=["POST"])
 def chat():
+    data = request.get_json()
+    user_input = data.get("message", "")
+
+    if not user_input:
+        return jsonify({"response": "⚠️ No message received"}), 400
+
     try:
-        data = request.get_json()
-        user_message = data.get("message")
-
-        if not user_message:
-            return jsonify({"error": "No message received"}), 400
-
-        response = model.generate_content(user_message)
+        response = model.generate_content(user_input)
         return jsonify({"response": response.text})
-
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"response": f"⚠️ Error: {str(e)}"}), 500
 
 if __name__ == "__main__":
     app.run(debug=True)
